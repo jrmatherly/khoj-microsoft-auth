@@ -1,0 +1,174 @@
+services:
+  #==================================================#
+  #                Khoj Database                     #
+  #==================================================#
+  database:
+    image: docker.io/pgvector/pgvector:pg15
+    volumes:
+      - khoj_db:/var/lib/postgresql/data/
+    networks:
+      - aangpt
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d khoj_db -U ${POSTGRES_USER}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  #==================================================#
+  #                Khoj Sandbox                      #
+  #==================================================#
+  sandbox:
+    image: ghcr.io/khoj-ai/terrarium:latest
+    networks:
+      - aangpt
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 2
+  #==================================================#
+  #                Khoj Search                       #
+  #==================================================#
+  search:
+    image: docker.io/searxng/searxng:latest
+    networks:
+      - aangpt
+    volumes:
+      - khoj_search:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+  #==================================================#
+  #                Khoj Computer                     #
+  #==================================================#
+  # Creates Computer for Khoj to use.
+  # Set KHOJ_OPERATOR_ENABLED=True in the server service environment variable to enable.
+  computer:
+    container_name: khoj-computer
+    image: ghcr.io/khoj-ai/khoj-computer:latest
+    #build:
+    #  context: .
+    #  dockerfile: computer.Dockerfile
+    networks:
+      - aangpt
+    volumes:
+      - khoj_computer:/home/operator
+    ports:
+      - 5900:5900
+  #==================================================#
+  #                Khoj Server                       #
+  #==================================================#
+  server:
+    # Use the following line to use the latest version of khoj. Otherwise, it will build from source. Set this to ghcr.io/khoj-ai/khoj-cloud:latest if you want to use the prod image.
+    # image: ghcr.io/khoj-ai/khoj:latest
+    # image: ghcr.io/khoj-ai/khoj:latest
+    # Uncomment the following line to build from source. This will take a few minutes. Comment the next two lines out if you want to use the official image.
+    build:
+      context: .
+    # Comment out this line when you're using the official ghcr.io/khoj-ai/khoj-cloud:latest prod image.
+    # command: --host="0.0.0.0" --port=42110 -vv --anonymous-mode --non-interactive
+    command: --host="0.0.0.0" --port=42110 -vv --non-interactive
+    #user: root
+    working_dir: /app
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - aangpt
+      - proxy
+    ports:
+      - 42110:42110
+    #extra_hosts:
+    #  - "host.docker.internal:host-gateway"
+    volumes:
+      - khoj_config:/root/.khoj/
+      - khoj_models:/root/.cache/torch/sentence_transformers
+      - khoj_models:/root/.cache/huggingface
+      # uncomment line below to mount docker socket to allow khoj to use its computer.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Use 0.0.0.0 to explicitly set the host ip for the service on the container. https://pythonspeed.com/articles/docker-connection-refused/
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - KHOJ_DJANGO_SECRET_KEY=${KHOJ_DJANGO_SECRET_KEY}
+      - KHOJ_DEBUG=False
+      - KHOJ_ADMIN_EMAIL=${KHOJ_ADMIN_EMAIL}
+      - KHOJ_ADMIN_PASSWORD=${KHOJ_ADMIN_PASSWORD}
+      # Default URL of Terrarium, the default Python sandbox used by Khoj to run code. Its container is specified above
+      - KHOJ_TERRARIUM_URL=http://sandbox:8080
+      # Uncomment line below to have Khoj run code in remote E2B code sandbox instead of the self-hosted Terrarium sandbox above. Get your E2B API key from https://e2b.dev/.
+      # - E2B_API_KEY=your_e2b_api_key
+      # Default URL of SearxNG, the default web search engine used by Khoj. Its container is specified above
+      - KHOJ_SEARXNG_URL=http://search:8080
+      # Uncomment line below to use with Ollama running on your local machine at localhost:11434.
+      # Change URL to use with other OpenAI API compatible providers like VLLM, LMStudio etc.
+      # - OPENAI_BASE_URL=http://host.docker.internal:11434/v1/
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      #
+      # Uncomment appropriate lines below to use chat models by OpenAI, Anthropic, Google.
+      # Ensure you set your provider specific API keys.
+      # ---
+      # - OPENAI_API_KEY=your_openai_api_key
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - GEMINI_API_KEY=your_gemini_api_key
+      # - ANTHROPIC_API_KEY=your_anthropic_api_key
+      #
+      # Uncomment line below to enable Khoj to use its computer.
+      - KHOJ_OPERATOR_ENABLED=True
+      # Uncomment appropriate lines below to enable web results with Khoj
+      # Ensure you set your provider specific API keys.
+      # ---
+      # Free, Slower API. Does both web search and webpage read. Get API key from https://jina.ai/
+      # - JINA_API_KEY=your_jina_api_key
+      # Paid, Fast API. Only does web search. Get API key from https://serper.dev/
+      # - SERPER_DEV_API_KEY=your_serper_dev_api_key
+      # Paid, Fast, Open API. Only does webpage read. Get API key from https://firecrawl.dev/
+      # - FIRECRAWL_API_KEY=your_firecrawl_api_key
+      # Paid, Fast, Higher Read Success API. Only does webpage read. Get API key from https://olostep.com/
+      # - OLOSTEP_API_KEY=your_olostep_api_key
+      #
+      # Uncomment the necessary lines below to make your instance publicly accessible.
+      # Proceed with caution, especially if you are using anonymous mode.
+      # ---
+      - KHOJ_NO_HTTPS=True
+      # Replace the KHOJ_DOMAIN with the server's externally accessible domain or I.P address from a remote machie (no http/https prefix).
+      # Ensure this is set correctly to avoid CSRF trusted origin or unset cookie issue when trying to access the admin panel.
+      # - KHOJ_DOMAIN=192.168.0.104
+      # - KHOJ_DOMAIN=khoj.example.com
+      - KHOJ_DOMAIN=${KHOJ_DOMAIN}
+      # Replace the KHOJ_ALLOWED_DOMAIN with the server's internally accessible domain or I.P address on the host machine (no http/https prefix).
+      # Only set if using a load balancer/reverse_proxy in front of your Khoj server. If unset, it defaults to KHOJ_DOMAIN.
+      # For example, if the load balancer service is added to the khoj docker network, set KHOJ_ALLOWED_DOMAIN to khoj's docker service name: `server'.
+      # - KHOJ_ALLOWED_DOMAIN=server
+      # - KHOJ_ALLOWED_DOMAIN=127.0.0.1
+      # - KHOJ_ALLOWED_DOMAIN=server
+      # Uncomment the line below to disable telemetry.
+      # Telemetry helps us prioritize feature development and understand how people are using Khoj
+      # Read more at https://docs.khoj.dev/miscellaneous/telemetry
+      - KHOJ_TELEMETRY_DISABLE=True
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+      # HTTP Router (redirects to HTTPS)
+      - "traefik.http.routers.khoj-http.rule=Host(`khoj.${DOMAIN}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.khoj-http.entrypoints=web"
+      - "traefik.http.routers.khoj-http.middlewares=https-redirect@file"
+      # HTTPS Router with Secure middleware
+      - "traefik.http.routers.khoj.rule=Host(`khoj.${DOMAIN}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.khoj.entrypoints=websecure"
+      - "traefik.http.routers.khoj.middlewares=secure-chain@file"
+      - "traefik.http.routers.khoj.service=khoj-service"
+      # Service configuration with explicit name
+      - "traefik.http.services.khoj-service.loadbalancer.server.port=42110"
+
+volumes:
+  khoj_config:
+  khoj_db:
+  khoj_models:
+  khoj_search:
+  khoj_computer:
