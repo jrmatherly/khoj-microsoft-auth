@@ -440,14 +440,10 @@ async def microsoft_auth(request: Request):
 
         # Log new user creation and send welcome email
         is_new_user = False
-        microsoft_user = await MicrosoftUser.objects.filter(user=user).afirst()
+        # Check if user was created recently (within last 3 minutes)
         if (
-            microsoft_user
-            and (
-                datetime.datetime.now(datetime.timezone.utc) - microsoft_user.created_at
-            ).total_seconds()
-            < 180
-        ):
+            datetime.datetime.now(datetime.timezone.utc) - user.date_joined
+        ).total_seconds() < 180:
             is_new_user = True
 
         if is_new_user:
