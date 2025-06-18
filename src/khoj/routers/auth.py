@@ -108,7 +108,10 @@ async def microsoft_login_get(request: Request):
     if not has_microsoft_oauth:
         raise HTTPException(status_code=400, detail="Microsoft OAuth is not configured")
         
-    redirect_uri = str(request.app.url_path_for("microsoft_auth"))
+    # Microsoft requires absolute URIs for redirect_uri
+    path = request.app.url_path_for("microsoft_auth")
+    base_url = str(request.base_url)
+    redirect_uri = f"{base_url.rstrip('/')}{path}"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 
@@ -118,7 +121,10 @@ async def microsoft_login(request: Request):
     if not has_microsoft_oauth:
         raise HTTPException(status_code=400, detail="Microsoft OAuth is not configured")
         
-    redirect_uri = str(request.app.url_path_for("microsoft_auth"))
+    # Microsoft requires absolute URIs for redirect_uri
+    path = request.app.url_path_for("microsoft_auth")
+    base_url = str(request.base_url)
+    redirect_uri = f"{base_url.rstrip('/')}{path}"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
 
