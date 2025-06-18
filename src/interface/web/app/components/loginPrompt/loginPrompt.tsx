@@ -100,7 +100,8 @@ export default function LoginPrompt(props: LoginPromptProps) {
         const nextParam = window.location.pathname !== "/login" ? 
             `?next=${encodeURIComponent(window.location.pathname)}` : "";
             
-        window.location.href = `/login/microsoft${nextParam}`;
+        // Must include /auth prefix as the auth_router is mounted with prefix="/auth"
+        window.location.href = `/auth/login/microsoft${nextParam}`;
     };
 
     const handleGoogleScriptLoad = () => {
