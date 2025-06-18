@@ -146,6 +146,7 @@ export default function LoginPrompt(props: LoginPromptProps) {
                             <MainSignInContext
                                 handleGoogleScriptLoad={handleGoogleScriptLoad}
                                 handleGoogleSignIn={handleGoogleSignIn}
+                                handleMicrosoftSignIn={handleMicrosoftSignIn}
                                 isLoading={isLoading}
                                 data={data}
                                 setUseEmailSignIn={setUseEmailSignIn}
@@ -173,6 +174,7 @@ export default function LoginPrompt(props: LoginPromptProps) {
                         <MainSignInContext
                             handleGoogleScriptLoad={handleGoogleScriptLoad}
                             handleGoogleSignIn={handleGoogleSignIn}
+                            handleMicrosoftSignIn={handleMicrosoftSignIn}
                             isLoading={isLoading}
                             data={data}
                             setUseEmailSignIn={setUseEmailSignIn}
@@ -383,6 +385,7 @@ function EmailSignInContext({
 function MainSignInContext({
     handleGoogleScriptLoad,
     handleGoogleSignIn,
+    handleMicrosoftSignIn,
     isLoading,
     data,
     setUseEmailSignIn,
@@ -390,6 +393,7 @@ function MainSignInContext({
 }: {
     handleGoogleScriptLoad: () => void;
     handleGoogleSignIn: () => void;
+    handleMicrosoftSignIn: () => void;
     isLoading: boolean;
     data: CredentialsData | undefined;
     setUseEmailSignIn: (useEmailSignIn: boolean) => void;
