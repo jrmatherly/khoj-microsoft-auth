@@ -95,23 +95,12 @@ export default function LoginPrompt(props: LoginPromptProps) {
     };
 
     const handleMicrosoftSignIn = () => {
-        if (!data?.microsoft?.client_id || !data?.microsoft?.redirect_uri) return;
-
-        // Create full redirect URI using current origin
-        const fullRedirectUri = `${window.location.origin}${data.microsoft.redirect_uri}`;
-
-        const params = new URLSearchParams({
-            client_id: data.microsoft.client_id,
-            redirect_uri: fullRedirectUri,
-            response_type: "code",
-            scope: "openid profile email",
-            state: window.location.pathname,
-            response_mode: "form_post"
-        });
-
-        // Use tenant_id from metadata if available, otherwise fall back to "common"
-        const tenantId = data?.microsoft?.tenant_id || "common";
-        window.location.href = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?${params}`;
+        // Use the backend's Microsoft OAuth endpoint which handles secure state generation
+        // This will properly set up the OAuth flow with CSRF protection
+        const nextParam = window.location.pathname !== "/login" ? 
+            `?next=${encodeURIComponent(window.location.pathname)}` : "";
+            
+        window.location.href = `/login/microsoft${nextParam}`;
     };
 
     const handleGoogleScriptLoad = () => {
