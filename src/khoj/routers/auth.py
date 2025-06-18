@@ -47,16 +47,24 @@ if not state.anonymous_mode:
 
     # Import auth provider factory
     from khoj.auth.factory import AuthProviderFactory
-    from khoj.database.adapters.microsoft import get_user_by_microsoft_token, create_user_by_microsoft_token
-    
+    from khoj.database.adapters.microsoft import (
+        get_user_by_microsoft_token,
+        create_user_by_microsoft_token,
+    )
+
     # Initialize provider factory
     auth_provider_factory = AuthProviderFactory()
-    
+
     # Check if any auth method is available
     has_magic_link = bool(os.environ.get("RESEND_API_KEY"))
-    has_google_oauth = bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET"))
-    has_microsoft_oauth = bool(os.environ.get("MICROSOFT_CLIENT_ID") and os.environ.get("MICROSOFT_CLIENT_SECRET"))
-    
+    has_google_oauth = bool(
+        os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET")
+    )
+    has_microsoft_oauth = bool(
+        os.environ.get("MICROSOFT_CLIENT_ID")
+        and os.environ.get("MICROSOFT_CLIENT_SECRET")
+    )
+
     if not (has_magic_link or has_google_oauth or has_microsoft_oauth):
         missing_requirements += [
             "Set RESEND_API_KEY for Magic Links, or GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET for Google OAuth,"
@@ -70,12 +78,16 @@ if not state.anonymous_mode:
     # Initialize OAuth providers
     config = Config(environ=os.environ)
     oauth = OAuth(config)
-    
+
     # Register Google OAuth if enabled
     if has_google_oauth:
         GOOGLE_CONF_URL = "https://accounts.google.com/.well-known/openid-configuration"
-        oauth.register(name="google", server_metadata_url=GOOGLE_CONF_URL, client_kwargs={"scope": "openid email profile"})
-    
+        oauth.register(
+            name="google",
+            server_metadata_url=GOOGLE_CONF_URL,
+            client_kwargs={"scope": "openid email profile"},
+        )
+
     # Register Microsoft OAuth if enabled
     if has_microsoft_oauth:
         # Use tenant ID from environment variable if provided, otherwise default to 'common'
@@ -84,7 +96,7 @@ if not state.anonymous_mode:
         oauth.register(
             name="microsoft",
             server_metadata_url=MICROSOFT_CONF_URL,
-            client_kwargs={"scope": "openid email profile"}
+            client_kwargs={"scope": "openid email profile"},
         )
 
 
@@ -107,10 +119,13 @@ async def microsoft_login_get(request: Request):
     # Microsoft OAuth login route
     if not has_microsoft_oauth:
         raise HTTPException(status_code=400, detail="Microsoft OAuth is not configured")
-        
+
     # Microsoft requires absolute URIs for redirect_uri
     path = request.app.url_path_for("microsoft_auth")
     base_url = str(request.base_url)
+    # Ensure HTTPS is used for the redirect URI to match Azure AD configuration
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
     redirect_uri = f"{base_url.rstrip('/')}{path}"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
@@ -120,10 +135,13 @@ async def microsoft_login(request: Request):
     # Microsoft OAuth login route
     if not has_microsoft_oauth:
         raise HTTPException(status_code=400, detail="Microsoft OAuth is not configured")
-        
+
     # Microsoft requires absolute URIs for redirect_uri
     path = request.app.url_path_for("microsoft_auth")
     base_url = str(request.base_url)
+    # Ensure HTTPS is used for the redirect URI to match Azure AD configuration
+    if base_url.startswith("http://"):
+        base_url = base_url.replace("http://", "https://")
     redirect_uri = f"{base_url.rstrip('/')}{path}"
     return await oauth.microsoft.authorize_redirect(request, redirect_uri)
 
@@ -132,7 +150,11 @@ async def microsoft_login(request: Request):
 async def login_magic_link(
     request: Request,
     form: MagicLinkForm,
-    email_limiter=Depends(EmailAttemptRateLimiter(requests=20, window=60 * 60 * 24, slug="magic_link_login_by_email")),
+    email_limiter=Depends(
+        EmailAttemptRateLimiter(
+            requests=20, window=60 * 60 * 24, slug="magic_link_login_by_email"
+        )
+    ),
 ):
     if request.user.is_authenticated:
         # Clear the session if user is already authenticated
@@ -140,12 +162,19 @@ async def login_magic_link(
 
     # Get/create user if valid email address
     check_deliverability = state.billing_enabled and not in_debug_mode()
-    user, is_new = await aget_or_create_user_by_email(form.email, check_deliverability=check_deliverability)
+    user, is_new = await aget_or_create_user_by_email(
+        form.email, check_deliverability=check_deliverability
+    )
     if not user:
-        raise HTTPException(status_code=404, detail="Invalid email address. Please fix before trying again.")
+        raise HTTPException(
+            status_code=404,
+            detail="Invalid email address. Please fix before trying again.",
+        )
 
     # Rate limit email login by user
-    user_limiter = EmailVerificationApiRateLimiter(requests=10, window=60 * 60 * 24, slug="magic_link_login_by_user")
+    user_limiter = EmailVerificationApiRateLimiter(
+        requests=10, window=60 * 60 * 24, slug="magic_link_login_by_user"
+    )
     await user_limiter(email=user.email)
 
     # Send email with magic link
@@ -169,10 +198,14 @@ async def sign_in_with_magic_link(
     code: str,
     email: str,
     rate_limiter=Depends(
-        EmailVerificationApiRateLimiter(requests=10, window=60 * 60 * 24, slug="magic_link_verification")
+        EmailVerificationApiRateLimiter(
+            requests=10, window=60 * 60 * 24, slug="magic_link_verification"
+        )
     ),
 ):
-    user, code_is_expired = await aget_user_validated_by_email_verification_code(code, email)
+    user, code_is_expired = await aget_user_validated_by_email_verification_code(
+        code, email
+    )
 
     if user:
         if code_is_expired:
@@ -240,7 +273,9 @@ async def auth_post(request: Request):
         return Response("Invalid CSRF token", status_code=400)
 
     try:
-        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), os.environ["GOOGLE_CLIENT_ID"])
+        idinfo = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), os.environ["GOOGLE_CLIENT_ID"]
+        )
     except OAuthError as error:
         return HTMLResponse(f"<h1>{error.error}</h1>")
     khoj_user = await get_or_create_user(idinfo)
@@ -248,7 +283,9 @@ async def auth_post(request: Request):
     if khoj_user:
         request.session["user"] = dict(idinfo)
 
-        if datetime.timedelta(minutes=3) > (datetime.datetime.now(datetime.timezone.utc) - khoj_user.date_joined):
+        if datetime.timedelta(minutes=3) > (
+            datetime.datetime.now(datetime.timezone.utc) - khoj_user.date_joined
+        ):
             asyncio.create_task(send_welcome_email(idinfo["name"], idinfo["email"]))
             update_telemetry_state(
                 request=request,
@@ -267,8 +304,21 @@ async def auth(request: Request):
     next_url_path = get_next_url(request)
 
     # Add query params from request, excluding OAuth params to next URL
-    oauth_params = {"code", "state", "scope", "authuser", "prompt", "session_state", "access_type", "next"}
-    query_params = {param: value for param, value in request.query_params.items() if param not in oauth_params}
+    oauth_params = {
+        "code",
+        "state",
+        "scope",
+        "authuser",
+        "prompt",
+        "session_state",
+        "access_type",
+        "next",
+    }
+    query_params = {
+        param: value
+        for param, value in request.query_params.items()
+        if param not in oauth_params
+    }
 
     # Rebuild next URL with updated query params
     parsed_next_url_path = urlparse(next_url_path)
@@ -319,11 +369,15 @@ async def auth(request: Request):
     credential = verified_data.json().get("id_token")
     if not credential:
         logger.error("Missing id_token in OAuth response")
-        return RedirectResponse(url="/login?error=invalid_token", status_code=HTTP_302_FOUND)
+        return RedirectResponse(
+            url="/login?error=invalid_token", status_code=HTTP_302_FOUND
+        )
 
     # Validate the OAuth token
     try:
-        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), os.environ["GOOGLE_CLIENT_ID"])
+        idinfo = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), os.environ["GOOGLE_CLIENT_ID"]
+        )
     except OAuthError as error:
         return HTMLResponse(f"<h1>{error.error}</h1>")
 
@@ -335,7 +389,9 @@ async def auth(request: Request):
         request.session["user"] = dict(idinfo)
 
         # Send a welcome email to new users
-        if datetime.timedelta(minutes=3) > (datetime.datetime.now(datetime.timezone.utc) - khoj_user.date_joined):
+        if datetime.timedelta(minutes=3) > (
+            datetime.datetime.now(datetime.timezone.utc) - khoj_user.date_joined
+        ):
             asyncio.create_task(send_welcome_email(idinfo["name"], idinfo["email"]))
             update_telemetry_state(
                 request=request,
@@ -359,33 +415,41 @@ async def logout(request: Request):
 async def microsoft_auth(request: Request):
     """Microsoft OAuth callback handler"""
     next_url = get_next_url(request)
-    
+
     try:
         # Exchange the authorization code for an access token
         token = await oauth.microsoft.authorize_access_token(request)
-        
+
         # Get user info from token
         userinfo = token.get("userinfo")
-        
+
         # Find or create user
         user = await get_user_by_microsoft_token(userinfo)
         if not user:
             user = await create_user_by_microsoft_token(userinfo)
-            
+
         # Check if user was created successfully
         if not user:
             logger.error("Failed to create or retrieve user from Microsoft token")
-            return HTMLResponse("<h1>Failed to create account. Please contact support.</h1>")
-            
+            return HTMLResponse(
+                "<h1>Failed to create account. Please contact support.</h1>"
+            )
+
         # Set user session
         request.session["user"] = {"id": user.id}
-        
+
         # Log new user creation and send welcome email
         is_new_user = False
         microsoft_user = await MicrosoftUser.objects.filter(user=user).afirst()
-        if microsoft_user and (datetime.datetime.now(datetime.timezone.utc) - microsoft_user.created_at).total_seconds() < 180:
+        if (
+            microsoft_user
+            and (
+                datetime.datetime.now(datetime.timezone.utc) - microsoft_user.created_at
+            ).total_seconds()
+            < 180
+        ):
             is_new_user = True
-            
+
         if is_new_user:
             await send_welcome_email(user.email)
             update_telemetry_state(
@@ -395,21 +459,23 @@ async def microsoft_auth(request: Request):
                 metadata={"server_id": str(user.uuid)},
             )
             logger.log(logging.INFO, f"🥳 New Microsoft User Created: {user.uuid}")
-            
+
         return RedirectResponse(url=next_url or "/", status_code=HTTP_302_FOUND)
     except OAuthError as error:
         logger.error(f"Microsoft OAuth error: {error}")
         return HTMLResponse(f"<h1>{error.error}</h1>")
     except Exception as e:
         logger.error(f"Error in Microsoft authentication: {e}")
-        return RedirectResponse(url="/login?error=microsoft_auth_failed", status_code=HTTP_302_FOUND)
+        return RedirectResponse(
+            url="/login?error=microsoft_auth_failed", status_code=HTTP_302_FOUND
+        )
 
 
 @auth_router.get("/oauth/metadata")
 async def oauth_metadata(request: Request):
     # Return metadata for enabled auth providers
     metadata = {}
-    
+
     # Add Google if enabled
     if has_google_oauth:
         google_redirect_uri = str(request.app.url_path_for("auth"))
@@ -417,7 +483,7 @@ async def oauth_metadata(request: Request):
             "client_id": os.environ.get("GOOGLE_CLIENT_ID"),
             "redirect_uri": f"{google_redirect_uri}",
         }
-    
+
     # Add Microsoft if enabled
     if has_microsoft_oauth:
         microsoft_redirect_uri = str(request.app.url_path_for("microsoft_auth"))
@@ -428,5 +494,5 @@ async def oauth_metadata(request: Request):
             "redirect_uri": f"{microsoft_redirect_uri}",
             "tenant_id": tenant_id,
         }
-        
+
     return metadata
