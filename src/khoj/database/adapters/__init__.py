@@ -48,6 +48,7 @@ from khoj.database.models import (
     GoogleUser,
     KhojApiUser,
     KhojUser,
+    MicrosoftUser,
     NotionConfig,
     PriceTier,
     ProcessLock,
@@ -329,6 +330,32 @@ async def create_user_by_google_token(token: dict) -> KhojUser:
     return user
 
 
+async def create_user_by_microsoft_token(token: dict) -> KhojUser:
+    user, _ = await KhojUser.objects.filter(email=token.get("email")).aupdate_or_create(
+        defaults={"username": token.get("email"), "email": token.get("email")}
+    )
+    user.verified_email = True
+    await user.asave()
+
+    await MicrosoftUser.objects.acreate(
+        sub=token.get("oid"),  # Microsoft uses "oid" as the unique user identifier
+        email=token.get("email"),
+        name=token.get("name"),
+        given_name=token.get("given_name"),
+        family_name=token.get("family_name"),
+        preferred_username=token.get("preferred_username"),
+        picture=token.get("picture"),  # Microsoft may use a different field for profile picture
+        tenant_id=token.get("tid"),  # Microsoft tenant ID
+        user=user,
+    )
+
+    user_subscription = await Subscription.objects.filter(user=user).afirst()
+    if not user_subscription:
+        await Subscription.objects.acreate(user=user, type=Subscription.Type.STANDARD)
+
+    return user
+
+
 @require_valid_user
 def set_user_name(user: KhojUser, first_name: str, last_name: str) -> KhojUser:
     user.first_name = first_name
@@ -478,10 +505,24 @@ async def aget_user_by_uuid(uuid: str) -> KhojUser:
 
 
 async def get_user_by_token(token: dict) -> KhojUser:
+    # Try to get user by Google token
     google_user = await GoogleUser.objects.filter(sub=token.get("sub")).select_related("user").afirst()
-    if not google_user:
+    if google_user:
+        return google_user.user
+        
+    # Try to get user by Microsoft token
+    microsoft_user = await MicrosoftUser.objects.filter(sub=token.get("oid")).select_related("user").afirst()
+    if microsoft_user:
+        return microsoft_user.user
+        
+    return None
+
+
+async def get_user_by_microsoft_token(token: dict) -> KhojUser:
+    microsoft_user = await MicrosoftUser.objects.filter(sub=token.get("oid")).select_related("user").afirst()
+    if not microsoft_user:
         return None
-    return google_user.user
+    return microsoft_user.user
 
 
 async def aget_user_by_phone_number(phone_number: str) -> KhojUser:
