@@ -1,6 +1,4 @@
-This is a [Next.js](https://nextjs.org/) project.
-
-## Getting Started
+# Getting Started
 
 First, install the dependencies:
 
@@ -14,7 +12,7 @@ In case you run into any dependency linking issues, you can try running:
 yarn add next
 ```
 
-### Run the development server:
+## Run the development server
 
 ```bash
 yarn dev
@@ -45,42 +43,45 @@ We've setup a utility command for building and serving the built files. This is 
 
 1. Exporting code
 To build the files once and serve them, run:
-```bash
-yarn export
-```
 
-If you're using Windows:
-```bash
-yarn windowsexport
-```
+    ```bash
+    yarn export
+    ```
 
+    If you're using Windows:
+
+    ```bash
+    yarn windowsexport
+    ```
 
 2. Continuously building code
 
-To keep building the files and serving them, run:
-```bash
-yarn watch
-```
+    To keep building the files and serving them, run:
 
-If you're using Windows:
-```bash
-yarn windowswatch
-```
+    ```bash
+    yarn watch
+    ```
 
-Now you should be able to load your custom pages from the Khoj app at http://localhost:42110/. To server any of the built files, you should update the routes in the `web_client.py` like so, where `new_file` is the new page you've added in this repo:
+    If you're using Windows:
 
-```python
-@web_client.post("/new_route", response_class=FileResponse)
-@requires(["authenticated"], redirect="login_page")
-def index_post(request: Request):
+    ```bash
+    yarn windowswatch
+    ```
 
-    return templates.TemplateResponse(
-        "new_file/index.html",
-        context={
-            "request": request,
-        },
-    )
-```
+    Now you should be able to load your custom pages from the Khoj app at <http://localhost:42110/>. To server any of the built files, you should update the routes in the `web_client.py` like so, where `new_file` is the new page you've added in this repo:
+
+    ```python
+    @web_client.post("/new_route", response_class=FileResponse)
+    @requires(["authenticated"], redirect="login_page")
+    def index_post(request: Request):
+
+        return templates.TemplateResponse(
+            "new_file/index.html",
+            context={
+                "request": request,
+            },
+        )
+    ```
 
 ## Learn More
 

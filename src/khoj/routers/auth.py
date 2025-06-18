@@ -415,9 +415,12 @@ async def oauth_metadata(request: Request):
     # Add Microsoft if enabled
     if has_microsoft_oauth:
         microsoft_redirect_uri = str(request.app.url_path_for("microsoft_auth"))
+        # Get tenant ID with fallback to "common"
+        tenant_id = os.environ.get("MICROSOFT_TENANT_ID", "common")
         metadata["microsoft"] = {
             "client_id": os.environ.get("MICROSOFT_CLIENT_ID"),
             "redirect_uri": f"{microsoft_redirect_uri}",
+            "tenant_id": tenant_id,
         }
         
     return metadata

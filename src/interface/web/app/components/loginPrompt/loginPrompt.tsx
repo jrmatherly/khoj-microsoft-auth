@@ -76,7 +76,7 @@ export default function LoginPrompt(props: LoginPromptProps) {
     const handleGoogleSignIn = () => {
         if (!data?.google?.client_id || !data?.google?.redirect_uri) return;
 
-        // Create full redirect URL using current origin
+        // Create full redirect URI using current origin
         const fullRedirectUri = `${window.location.origin}${data.google.redirect_uri}`;
 
         const params = new URLSearchParams({
@@ -91,6 +91,26 @@ export default function LoginPrompt(props: LoginPromptProps) {
         });
 
         window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    };
+
+    const handleMicrosoftSignIn = () => {
+        if (!data?.microsoft?.client_id || !data?.microsoft?.redirect_uri) return;
+
+        // Create full redirect URI using current origin
+        const fullRedirectUri = `${window.location.origin}${data.microsoft.redirect_uri}`;
+
+        const params = new URLSearchParams({
+            client_id: data.microsoft.client_id,
+            redirect_uri: fullRedirectUri,
+            response_type: "code",
+            scope: "openid profile email",
+            state: window.location.pathname,
+            response_mode: "form_post"
+        });
+
+        // Use tenant_id from metadata if available, otherwise fall back to "common"
+        const tenantId = data?.microsoft?.tenant_id || "common";
+        window.location.href = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize?${params}`;
     };
 
     const handleGoogleScriptLoad = () => {
@@ -496,6 +516,32 @@ function MainSignInContext({
                     )}
                     Continue with Google
                 </Button>
+
+                {data?.microsoft && (
+                    <Button
+                        variant="outline"
+                        className="w-[300px] p-8 flex gap-2 items-center justify-center rounded-lg font-bold"
+                        onClick={handleMicrosoftSignIn}
+                        disabled={
+                            isLoading ||
+                            !data?.microsoft ||
+                            !data?.microsoft.client_id ||
+                            !data?.microsoft.redirect_uri
+                        }
+                    >
+                        {isLoading ? (
+                            <Spinner className="h-6 w-6" />
+                        ) : (
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M11.4 4.8H4.8V11.4H11.4V4.8Z" fill="#F25022" />
+                                <path d="M11.4 12.6H4.8V19.2H11.4V12.6Z" fill="#00A4EF" />
+                                <path d="M19.2 4.8H12.6V11.4H19.2V4.8Z" fill="#7FBA00" />
+                                <path d="M19.2 12.6H12.6V19.2H19.2V12.6Z" fill="#FFB900" />
+                            </svg>
+                        )}
+                        Continue with Microsoft
+                    </Button>
+                )}
 
                 <Button
                     variant="outline"
