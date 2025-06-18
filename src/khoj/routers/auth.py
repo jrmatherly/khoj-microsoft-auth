@@ -22,7 +22,6 @@ from khoj.database.adapters import (
     get_khoj_tokens,
     get_or_create_user,
 )
-from khoj.database.models import MicrosoftUser
 from khoj.routers.email import send_magic_link_email, send_welcome_email
 from khoj.routers.helpers import (
     EmailAttemptRateLimiter,
@@ -447,7 +446,6 @@ async def microsoft_auth(request: Request):
             is_new_user = True
 
         if is_new_user:
-            await send_welcome_email(user.email)
             update_telemetry_state(
                 request=request,
                 telemetry_type="api",
