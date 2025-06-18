@@ -434,8 +434,13 @@ async def microsoft_auth(request: Request):
                 "<h1>Failed to create account. Please contact support.</h1>"
             )
 
-        # Set user session
-        request.session["user"] = {"id": user.id}
+        # Set user session with full user info to match Google auth format
+        request.session["user"] = {
+            "email": user.email,
+            "name": getattr(user, "name", ""),
+            "sub": str(user.uuid),
+            "id": user.id
+        }
 
         # Log new user creation and send welcome email
         is_new_user = False
