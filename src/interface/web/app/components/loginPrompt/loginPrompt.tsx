@@ -41,6 +41,7 @@ const ALLOWED_OTP_ATTEMPTS = 5;
 interface Provider {
     client_id: string;
     redirect_uri: string;
+    tenant_id?: string;
 }
 
 interface CredentialsData {
