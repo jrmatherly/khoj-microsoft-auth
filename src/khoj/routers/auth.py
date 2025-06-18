@@ -349,7 +349,7 @@ async def logout(request: Request):
     return RedirectResponse(url="/")
 
 
-@auth_router.get("/redirect/microsoft")
+@auth_router.route("/redirect/microsoft", methods=["GET", "POST"])
 async def microsoft_auth(request: Request):
     """Microsoft OAuth callback handler"""
     next_url = get_next_url(request)
